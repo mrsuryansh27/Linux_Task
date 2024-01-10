@@ -1,0 +1,157 @@
+#!/bin/bash
+
+VERSION="0.1.0"
+
+function show_help {
+    echo "Usage: internsctl [options]"
+    echo "Options:"
+    echo "  --help              Show this help message and exit"
+    echo "  --version           Show command version"
+    echo "  cpu getinfo         Get CPU information"
+    echo "  memory getinfo      Get memory information"
+    echo "  user create <username>    Create a new user"
+    echo "  user list           List all regular users"
+    echo "  user list --sudo-only    List users with sudo permissions"
+    echo "  file getinfo <file-name> [options]   Get information about a file"
+    # Add more options as needed
+}
+
+function show_version {
+    echo "internsctl v$VERSION"
+}
+
+function get_cpu_info {
+    echo "CPU Information:"
+    lscpu
+}
+
+function create_user {
+    if [ -z "$3" ]; then
+        echo "Error: Please provide a username."
+        exit 1
+    fi
+
+    # Create a new user
+    sudo adduser "$3"
+
+    echo "User '$3' created successfully."
+}
+
+function list_users {
+    if [ "$2" == "--sudo-only" ]; then
+        # List users with sudo permissions
+        getent group sudo | cut -d: -f4 | tr ',' '\n'
+    else
+        # List all regular users
+        getent passwd | grep -vE "/nologin|/false" | cut -d: -f1
+    fi
+}
+
+function get_file_info {
+    if [ ! -e "$2" ]; then
+        echo "Error: File '$2' not found."
+        exit 1
+    fi
+
+    file="$2"
+    size_option=false
+    permissions_option=false
+    owner_option=false
+    last_modified_option=false
+
+    # Parse options
+    while [[ $# -gt 2 ]]; do
+        case "$3" in
+            --size | -s)
+                size_option=true
+                ;;
+            --permissions | -p)
+                permissions_option=true
+                ;;
+            --owner | -o)
+                owner_option=true
+                ;;
+            --last-modified | -m)
+                last_modified_option=true
+                ;;
+            *)
+                echo "Invalid option: $3"
+                exit 1
+                ;;
+        esac
+        shift
+    done
+
+    # Display file information based on options
+    echo "File:	$file"
+    if [ "$size_option" = true ]; then
+        echo "Size(B):	$(stat -c%s "$file")"
+    fi
+    if [ "$permissions_option" = true ]; then
+        echo "Access:	$(stat -c%a "$file")"
+    fi
+    if [ "$owner_option" = true ]; then
+        echo "Owner:	$(stat -c%U "$file")"
+    fi
+    if [ "$last_modified_option" = true ]; then
+        echo "Modify:	$(stat -c%y "$file")"
+    fi
+}
+
+# Parse command-line arguments
+case "$1" in
+    --help)
+        show_help
+        ;;
+    --version)
+        show_version
+        ;;
+    cpu)
+        case "$2" in
+            getinfo)
+                get_cpu_info
+                ;;
+            *)
+                echo "Invalid CPU command. Use 'internsctl cpu getinfo'."
+                ;;
+        esac
+        ;;
+    memory)
+        case "$2" in
+            getinfo)
+                echo "Memory Information:"
+                free -h
+                ;;
+            *)
+                echo "Invalid memory command. Use 'internsctl memory getinfo'."
+                ;;
+        esac
+        ;;
+    user)
+        case "$2" in
+            create)
+                create_user "$@"
+                ;;
+            list)
+                list_users "$@"
+                ;;
+            *)
+                echo "Invalid user command. Use 'internsctl user create <username>' or 'internsctl user list [--sudo-only]'."
+                ;;
+        esac
+        ;;
+    file)
+        case "$2" in
+            getinfo)
+                shift
+                get_file_info "$@"
+                ;;
+            *)
+                echo "Invalid file command. Use 'internsctl file getinfo <file-name> [options]'."
+                ;;
+        esac
+        ;;
+    *)
+        show_help
+        ;;
+esac
